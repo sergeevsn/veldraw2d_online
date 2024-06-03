@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.0/css/bulma.min.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
+    <style>
+      table {
+      border: solid 1px;
+      text-align:left;
+      border-color: lightgray;
+      padding:7px;
+      }
+      
+      table {
+        width: 300px;
+        background:#6d72b1;
+      }
+      input {
+         width: 80px;
+      }
+
+      .tag {
+        width: 300px;
+      }
+    
+    </style>
+</head>
+
+<body>
+    <section class="hero is-primary">
+        <div class="hero-body pl-12 pt-4 pb-4">
+          <p class="title">VelDraw2D</p>
+          <p class="subtitle">Создание простых глубинно-скоростных моделей онлайн.</p>
+          <p>
+            <strong>Автор </strong> <a href="http://sergeevsergei.ru">Сергей Сергеев</a>. 
+           
+            Приложение использует <a href="https://flask.palletsprojects.com/">Flask</a>, 
+            <a href="https://plotly.com/javascript/">Plotly.js</a>, <a href="https://github.com/equinor/segyio">Segyio</a>, 
+            <a href="https://opencv.org/get-started/">OpenCV</a> и <a href="https://bulma.io">Bulma</a>.
+         
+          </p>
+        </div>
+      </section>
+
+    <section class="section pb-0">       
+        <div class="columns">
+            <div id="controlPanel" class="column is-narrow">
+              <div class="box" style="width: 360px">
+                <span class="tag is-light is-large is-rounded mb-4">Новая модель</span>
+                <table class ="table is-narrow" id="tblNewModel" >              
+                <tr><td>Отсчетов по X:</td><td><input type="number" id="xSamples" value="501" min="1" max="2000"  size="5"></td></tr>
+                <tr><td>Отсчетов по Z:</td><td><input type="number" id="zSamples" value="501" min="1" max="2000" size="5"></td></tr>               
+                <tr><td>Шаг по X, m:</td><td><input type="number" id="xStep" value="5" min="1" max="100" size="5"></td></tr> 
+                <tr><td>Шаг по Z, m:</td><td><input type="number" id="zStep" value="5" min="1" max="100" size="5" ></td></tr>
+                <tr><td>Фоновая скорость:</td><td><input type="number" id="bckgVel" value="2000" min="1" max="10000"  size="5"></td></tr>
+                <br>
+                <tr><td><button title="Создать новую модель с указанными выше параметрами. Старая будет потеряна." class="button is-primary is-normal" id="btnNewModel">Новая модель</button></td></tr>
+              </table>            
+           
+              
+              <span class="tag is-light is-large is-rounded mb-4">Тип фигуры</span><br>
+              <div class="select" >
+                <select id="selMode">
+                  <option value="rectangle" title="Потяните мышью в любом месте модели, с этой точки начнется отрисовка прямоугольной формы. После завершения появится форма для добавления фигуры в модель. Перед добавлением форму можно перетаскивать и править узлы">Прямоугольник</option>
+                  <option value="path"  title="Потяните мышью в любом месте модели, начнется отрисовка произвольной замкнутой формы. Первая точка является так же и последней. После завершения появится форма для добавления фигуры в модель. Перед добавлением форму можно перетаскивать и править узлы">Произвольная замкнутая фигура</option>
+                  <option value="point" title="Кликните в любом месте модели, в указанной точке появится точечный дифрактор. В появившейся форме можно будет указать его радиус и скорость. При достаточно больших радиусах фигура по сути будет являться телом в форме окружности">Дифрактор/круглое тело</option>
+                </select>
+              </div>
+
+              <br><br> 
+
+              <div id="tblAddFigure" style = "display:none">
+                <span class="tag is-light is-rounded ">Вставка в модель</span>    
+                <table class ="table mt-5"  >  
+                <tr>                     
+                  <td>Cкорость объекта:</td><td><input type="number" id="shapeVel" value="3000" min="1" max="10000"  size="5"> </td></tr> 
+                  <tr id = "trDiffRadius" style="display: none"><td>Радиус, м:</td><td><input id="diffRadius" type="number" value="10" min="1" max="100" size="5"></td></tr>
+                  <tr><td><button title="Заполнить указанной скоростью фигуру и записать значения в соответствующую область модели" class="button is-primary is-small" id="btnAddFigure">Добавить в модель</button></td>
+                  <td><button title="Удалить фигуру, чтобы можно было нарисовать новую" class="button is-primary is-small" id="btnRemoveFigure">Удалить</button></td>
+                  </tr>  
+                </table>
+                <br>
+              </div>
+                            
+         
+              <span class="tag is-light is-large mb-4 mr-4 is-rounded">Сохранение</span><br>
+              <table class ="table">
+                <tr><td style="width: 150px; text-align: center"><button title="Сохранить в файл формата SEG-Y. См https://en.wikipedia.org/wiki/SEG-Y" class="button is-primary is-normal" id="btnSaveSegy">SEG-Y</button></td>
+                <td><button title="Сохранить в двоичный файл. Отсчеты будут записаны один за другим, потрассно. При преобразовании в двумерный массив, первый индекс будет X, второй Y" 
+                  class="button is-primary is-normal" id="btnSaveBin">Binary</button></td></tr>
+              </table>
+       
+            </div>  
+          </div>
+
+          <div  class="column is-narrow p-2">
+            <div class="box" style="width: 930px">
+              <div id="heatmapDiv"></div>        
+                 
+            </div>   
+          </div>
+
+      
+
+          
+        </div>
+    </section>  
+   
+    
+<script>
+
+   
+  
+    var z_num = 501;
+    var x_num = 501;
+    var step_x = 5;
+    var step_z = 5;
+    var background_vel = 2000;
+    var first_time = true;
+    var current_path = "current path";
+    var delete_state = false;
+    var mode = 'rectangle';
+    
+
+    background_vel_array = [[]];
+
+    function reset_graph(fetched=false) {                 
+        if (!fetched) {
+          background_vel_array = Array(z_num).fill(background_vel).map(() => Array(x_num).fill(background_vel));
+          }
+
+        dragmode = 'drawrect'; 
+        if (mode=='path') {
+          dragmode = 'drawclosedpath';
+        }
+        if (mode=='point') {
+          dragmode = 'selected';
+        }
+        xvl = Array.from({ length: x_num }, (v, i) =>  i * step_x);
+        zvl = Array.from({ length: z_num }, (v, i) =>  i * step_z);        
+        var data = [
+        {
+          z: background_vel_array,
+          x: xvl,
+          y: zvl,
+          type: 'heatmap',
+          hoverongaps: false,
+        }
+        ];     
+
+        console.log(dragmode);
+
+        var layout = {
+            title: {text: 'Глубинно-скоростная модель среды',  y:0.98, yanchor:'top', font: {weight: 'bold', color: 'rgb(0, 160, 138)'}},
+            annotations: [],
+            xaxis: {
+                ticks: '',
+                side: 'top',
+                autosize: true,
+                title: 'X, м',
+                mirror: 'ticks',
+                rangeslider: {visible:false},
+            },
+            yaxis: {
+                ticks: '',
+                ticksuffix: ' ',
+                autorange: 'reversed',    
+                       
+                autosize: false,
+                title: 'Z, м',
+                mirror: 'ticks',
+                rangeslider: {visible:false},
+            },
+            
+            dragmode : dragmode,
+            newshape : {
+                fillcolor: "rgba(55,95,55,1)",
+            },
+            width: 900,
+            height: 700,
+            
+        };     
+
+        var config = {
+          modeBarButtonsToRemove:['pan2d','select2d','lasso2d','resetScale2d', 'zoom2d', 'zoomin2d', 'zoomout2d', 'autoscale2d'],
+          displayModeBar: true,
+          showAxisDragHandles : false,
+        }
+
+        if (first_time) {
+            Plotly.newPlot('heatmapDiv', data, layout,config);
+            first_time = false;
+          }
+        else {
+          Plotly.react('heatmapDiv', data, layout, config);
+        }  
+
+    }    
+    
+    reset_graph();
+
+    var modeSelector = document.getElementById('selMode');
+    modeSelector.addEventListener('change', function(){
+        if (this.value=='point') mode = 'point';                      
+        if (this.value=='rectangle') mode = 'rectangle';
+        if (this.value=='path') mode = 'path';
+        reset_graph(fetched=true)
+    })
+
+    var heatmapPlot = document.getElementById('heatmapDiv');
+
+    heatmapPlot.on('plotly_click', function(data){        
+        console.log("Hello");
+        document.getElementById('trDiffRadius').style.removeProperty('display');
+        diff_x_ind = Number(data.points[0].pointIndex[1]);
+        diff_z_ind = Number(data.points[0].pointIndex[0]);
+        update_data = {
+                  'shapes' : [ {
+                    type: 'circle',
+                    xref: 'x',
+                    yref: 'y',
+                    x0: (diff_x_ind-1)*step_x,
+                    y0: (diff_z_ind-1)*step_z,
+                    x1: (diff_x_ind)*step_x,
+                    y1: (diff_z_ind)*step_z,          
+                    fillcolor: 'blue',
+                    line: {
+                        color: 'white'
+                          }
+                  },],    
+        }
+       
+        Plotly.relayout(heatmapPlot, update_data);
+        document.getElementById('tblAddFigure').style.removeProperty('display');
+       
+    });
+
+    heatmapPlot.on('plotly_relayout', function(data){ 
+      if (!delete_state) {
+        if (mode=='rectangle' || mode=='path'){
+        
+          if (data.shapes){
+            const shape = data.shapes[data.shapes.length - 1]
+            if (data.shapes.length > 1) {
+              
+                update_data = {
+                    'shapes' : [shape],
+                }
+                Plotly.relayout(heatmapPlot, update_data)
+            }   
+            else {                 
+                document.getElementById('tblAddFigure').style.removeProperty('display');          
+                delete_state = false;                
+            }
+          }
+        }     
+      } 
+      else {      
+          document.getElementById('tblAddFigure').style.display = "none";
+          delete_state = false;
+      }
+      
+    })   
+    
+   
+    const buttonNewModel = document.getElementById('btnNewModel');
+    const buttonAddFigure = document.getElementById('btnAddFigure');
+    const buttonRemoveFig = document.getElementById('btnRemoveFigure');
+    const buttonSaveSegy = document.getElementById('btnSaveSegy');
+    const buttonSaveBin = document.getElementById('btnSaveBin');
+   
+
+    buttonNewModel.addEventListener('click', function() { 
+    
+      const x_samples = Number(document.getElementById('xSamples').value);
+      const z_samples = Number(document.getElementById('zSamples').value);
+      const x_step = Number(document.getElementById('xStep').value);
+      const z_step = Number(document.getElementById('zStep').value);
+      const vel = Number(document.getElementById('bckgVel').value);         
+      x_num = x_samples;
+      z_num = z_samples;
+      step_x = x_step;
+      step_z = z_step;
+      background_vel = vel;
+      document.getElementById('tblAddFigure').style.display = "none";
+      reset_graph();
+         
+    });
+
+    
+    buttonAddFigure.addEventListener('click', function() { 
+
+      console.log(heatmapPlot.layout.shapes)
+       
+      document.getElementById('tblAddFigure').style.display = "none";
+
+      const shape = heatmapPlot.layout.shapes[0];      
+      let shape_data = {x0 : shape.x0,
+                        x1 : shape.x1,
+                        y0 : shape.y0,
+                        y1 : shape.y1,}
+      
+  
+       
+      if (mode == 'path') {
+         
+          shape_data = {              
+              path : shape.path            
+          }
+      }
+
+      if (mode == 'point') {
+          
+          shape_data = {
+            pointX : (shape['x1'] + shape['x0'])/2,
+            pointZ : (shape['y1'] + shape['y0'])/2,
+            radius: Number(document.getElementById('diffRadius').value),
+          }
+      }    
+      console.log(shape_data)
+
+      data_to_send = {
+              shape_type : mode,    
+              shape_data : shape_data,         
+              step_x: step_x,
+              step_z: step_z,              
+              vel_array: background_vel_array,
+              shape_vel: Number(document.getElementById('shapeVel').value)
+          
+       }  
+       fetch('/update', {method: 'POST', body: JSON.stringify(data_to_send),
+                                headers: {'Content-Type':'application/json'} })
+                                .then(response => response.json())
+                                .then(data => {
+                                    background_vel_array = data;
+                                    console.log(data);
+                                    console.log(background_vel_array);
+                                    reset_graph(fetched=true);
+                                })       
+       
+    });
+
+    buttonRemoveFig.addEventListener('click', function() { 
+      update_data = {
+                'shapes' : [],
+            }
+      delete_state = true;  
+      //document.getElementById('tblAddFigure').style.removeProperty('display');
+      Plotly.relayout(heatmapPlot, update_data)
+        
+    });
+
+    buttonSaveSegy.onclick =  function() {save_data('sgy')};
+    buttonSaveBin.onclick =  function() {save_data('dat')};
+
+    function save_data(data_type) {
+    
+      data_to_send = {
+            vel_array: background_vel_array,
+            data_type: data_type,
+            step_x: step_x,
+            step_z: step_z,
+      } 
+      fetch('/save', {method: 'POST', body: JSON.stringify(data_to_send),
+                                headers: {'Content-Type':'application/json'} })
+                                .then(response => response.blob())
+                                .then(blob => {
+                                    var url = window.URL.createObjectURL(blob);
+                                    var a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = "velmodel."+data_type;
+                                    document.body.appendChild(a); // we need to append the element to the dom -> otherwise it will not work in firefox
+                                    a.click();    
+                                    a.remove();  //afterwards we remove the element again         
+                                });
+    }
+
+  </script>
+
+
+</body>
+</html>
