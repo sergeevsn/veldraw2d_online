@@ -127,9 +127,13 @@
 
     function reset_graph(fetched=false) {                 
         if (!fetched) {
+          console.log(typeof background_vel_array)
           background_vel_array = Array(z_num).fill(background_vel).map(() => Array(x_num).fill(background_vel));
           }
-
+        else {
+          console.log(typeof background_vel_array);
+        }
+          
         dragmode = 'drawrect'; 
         if (mode=='path') {
           dragmode = 'drawclosedpath';
@@ -139,6 +143,7 @@
         }
         xvl = Array.from({ length: x_num }, (v, i) =>  i * step_x);
         zvl = Array.from({ length: z_num }, (v, i) =>  i * step_z);        
+
         var data = [
         {
           z: background_vel_array,
@@ -149,7 +154,7 @@
         }
         ];     
 
-        console.log(dragmode);
+        
 
         var layout = {
             title: {text: 'Глубинно-скоростная модель среды',  y:0.98, yanchor:'top', font: {weight: 'bold', color: 'rgb(0, 160, 138)'}},
@@ -189,11 +194,15 @@
         }
 
         if (first_time) {
+            
             Plotly.newPlot('heatmapDiv', data, layout,config);
+          
             first_time = false;
           }
         else {
-          Plotly.react('heatmapDiv', data, layout, config);
+      
+       
+          Plotly.react('heatmapDiv', data, layout, config);          
         }  
 
     }    
@@ -211,7 +220,7 @@
     var heatmapPlot = document.getElementById('heatmapDiv');
 
     heatmapPlot.on('plotly_click', function(data){        
-        console.log("Hello");
+       
         document.getElementById('trDiffRadius').style.removeProperty('display');
         diff_x_ind = Number(data.points[0].pointIndex[1]);
         diff_z_ind = Number(data.points[0].pointIndex[0]);
@@ -291,8 +300,7 @@
     
     buttonAddFigure.addEventListener('click', function() { 
 
-      console.log(heatmapPlot.layout.shapes)
-       
+        
       document.getElementById('tblAddFigure').style.display = "none";
 
       const shape = heatmapPlot.layout.shapes[0];      
@@ -318,7 +326,7 @@
             radius: Number(document.getElementById('diffRadius').value),
           }
       }    
-      console.log(shape_data)
+
 
       data_to_send = {
               shape_type : mode,    
@@ -329,15 +337,17 @@
               shape_vel: Number(document.getElementById('shapeVel').value)
           
        }  
-       fetch('/update', {method: 'POST', body: JSON.stringify(data_to_send),
+       fetch('http://127.0.0.1:8000/update', {
+                                method: 'POST',                                 
+                                body: JSON.stringify(data_to_send),
                                 headers: {'Content-Type':'application/json'} })
                                 .then(response => response.json())
-                                .then(data => {
-                                    background_vel_array = data;
-                                    console.log(data);
-                                    console.log(background_vel_array);
+                                .then(data => 
+                                  {
+                                    background_vel_array = data;                              
+                                    
                                     reset_graph(fetched=true);
-                                })       
+                                  })       
        
     });
 
@@ -362,7 +372,7 @@
             step_x: step_x,
             step_z: step_z,
       } 
-      fetch('/save', {method: 'POST', body: JSON.stringify(data_to_send),
+      fetch('http://127.0.0.1:8000/save', {method: 'POST', body: JSON.stringify(data_to_send),
                                 headers: {'Content-Type':'application/json'} })
                                 .then(response => response.blob())
                                 .then(blob => {
