@@ -6,10 +6,12 @@ from fastapi.responses import FileResponse
 from io import BytesIO
 from pathlib import Path
 
+import os
+import shutil
+
 import json
 
-SEGY_FNAME = 'uploads/temp.sgy'
-BINARY_FNAME = 'uploads/temp.dat'
+UPLOAD_FOLDER = 'uploads'
 
 app = FastAPI()
 
@@ -21,9 +23,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get('/update')
-async def hello(request: Request):
-    print('Hello')
+@app.on_event("shutdown")
+def on_shuttdown():
+    for fname in os.listdir(UPLOAD_FOLDER):
+        os.remove(os.path.join(UPLOAD_FOLDER, fname))
 
 @app.post('/update')
 async def draw_shape(request: Request):
@@ -54,17 +57,20 @@ async def save_model(request: Request):
     vel_array = np.array(request_body['vel_array'])
     step_x = request_body['step_x']
     step_z = request_body['step_z']
-    fname = SEGY_FNAME
+    fname =  os.path.join(UPLOAD_FOLDER, f'{request.client.host}.sgy')
     if request_body['data_type'] == 'sgy':                    
         save_segy(vel_array.T, step_x, step_z, fname)            
     else:
-        fname = BINARY_FNAME
-        save_bin(vel_array, fname)    
-        
-        
-    #with open(fname, 'rb') as binary_file:
-    #    file_contents = binary_file.read()            
+        fname = os.path.join(UPLOAD_FOLDER, f'{request.client.host}.bin')
+        save_bin(vel_array, fname)
 
     
     return FileResponse(Path(fname))
          
+@app.post('/closed')
+async def on_closed(request: Request):
+    if os.path.exists(os.path.join(UPLOAD_FOLDER, f'{request.client.host}.bin')):
+        os.remove(os.path.join(UPLOAD_FOLDER, f'{request.client.host}.bin'))
+    if os.path.exists(os.path.join(UPLOAD_FOLDER, f'{request.client.host}.sgy')):
+        os.remove(os.path.join(UPLOAD_FOLDER, f'{request.client.host}.sgy'))
+
